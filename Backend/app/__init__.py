@@ -22,11 +22,25 @@ def create_app(config_name=None):
     app.config.from_object(config.get(config_name, config['default']))
     
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'receipts'), exist_ok=True)
     
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
     CORS(app, resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}}, supports_credentials=True)
+
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            if 'transactions' in inspector.get_table_names():
+                cols = [c['name'] for c in inspector.get_columns('transactions')]
+                if 'receipt_url' not in cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE transactions ADD COLUMN receipt_url VARCHAR(500)"))
+                        conn.commit()
+        except Exception:
+            pass
     
     # Register blueprints
     from app.routes.auth import auth_bp

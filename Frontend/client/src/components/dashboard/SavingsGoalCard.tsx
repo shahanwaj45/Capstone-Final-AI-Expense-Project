@@ -43,9 +43,9 @@ export default function SavingsGoalCard({ goal, onContribute, onDelete }: Props)
               </span>
             ) : null}
 
-            {onDelete && (
+            {onDelete && goal.id && (
               <button
-                onClick={() => onDelete(goal.id, goal.name)}
+                onClick={() => onDelete(goal.id!, goal.name)}
                 className="rounded-lg p-1.5 text-[#9aa69f] hover:text-red-500 hover:bg-white/80 transition"
                 title="Delete goal"
               >

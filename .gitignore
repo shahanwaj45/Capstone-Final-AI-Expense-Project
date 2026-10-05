@@ -26,6 +26,10 @@ ENV/
 *.sqlite
 *.sqlite3
 instance/
+uploads/
+Backend/uploads/
+!Backend/uploads/.gitkeep
+!Backend/uploads/receipts/.gitkeep
 
 # Node.js / Frontend dependencies and builds
 node_modules/

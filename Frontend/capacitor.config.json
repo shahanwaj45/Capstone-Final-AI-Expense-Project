@@ -1,0 +1,9 @@
+{
+  "appId": "com.expensetracker.ai",
+  "appName": "AI Expense Tracker",
+  "webDir": "dist/public",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

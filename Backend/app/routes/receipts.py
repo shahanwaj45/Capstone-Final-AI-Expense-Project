@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, send_from_directory
 from app import db
 from app.models.transaction import Transaction, CATEGORY_COLORS
 from app.services.ocr_service import scan_receipt
@@ -15,9 +15,15 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
 def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def _get_receipts_dir():
+    receipt_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'receipts')
+    os.makedirs(receipt_dir, exist_ok=True)
+    return receipt_dir
+
 @receipts_bp.route('/scan', methods=['POST'])
 @require_auth
 def scan():
+    user = get_current_user()
     if 'file' not in request.files:
         return error_response('No file uploaded', 'VALIDATION_ERROR')
     
@@ -34,30 +40,88 @@ def scan():
     if size > 10 * 1024 * 1024:
         return error_response('File too large. Maximum size is 10MB.', 'VALIDATION_ERROR')
     
-    # Save to uploads dir with unique name
+    # Save to uploads/receipts dir with unique name
     ext = f.filename.rsplit('.', 1)[1].lower()
-    unique_name = f"{uuid.uuid4()}.{ext}"
-    upload_dir = current_app.config['UPLOAD_FOLDER']
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, unique_name)
+    unique_name = f"receipt_{uuid.uuid4().hex}_{int(datetime.utcnow().timestamp())}.{ext}"
+    receipts_dir = _get_receipts_dir()
+    file_path = os.path.join(receipts_dir, unique_name)
     f.save(file_path)
     
-    # Scan
+    # Analyze receipt with AI (Gemini Vision)
     extracted, err = scan_receipt(file_path)
     
-    # Clean up temp file
-    try:
-        os.remove(file_path)
-    except Exception:
-        pass
-    
     if err:
+        # Clean up file on failure
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
         return error_response(err, 'OCR_ERROR', status=422)
     
+    receipt_url = f"/api/receipts/image/{unique_name}"
+    source = request.form.get('source', 'upload')  # 'camera' or 'upload'
+    auto_save_requested = request.form.get('auto_save', '').lower() in ('true', '1', 'yes')
+    use_today = request.form.get('use_today', '').lower() in ('true', '1', 'yes')
+
+    saved_tx = None
+    if auto_save_requested and extracted:
+        raw_amt = extracted.get('amount')
+        try:
+            amt = float(raw_amt) if raw_amt is not None else 0.0
+        except (TypeError, ValueError):
+            amt = 0.0
+
+        if amt > 0:
+            merchant_name = (extracted.get('merchant') or 'Camera receipt' if source == 'camera' else 'Scanned receipt').strip()
+            cat = extracted.get('category') or 'Other'
+
+            if use_today or not extracted.get('date'):
+                tx_date = datetime.utcnow()
+            else:
+                try:
+                    str_d = str(extracted['date']).strip()
+                    if len(str_d) == 10:
+                        parsed_d = datetime.strptime(str_d, '%Y-%m-%d')
+                        tx_date = datetime.combine(parsed_d.date(), datetime.utcnow().time())
+                    else:
+                        tx_date = datetime.fromisoformat(str_d)
+                except Exception:
+                    tx_date = datetime.utcnow()
+
+            notes_tag = "Camera receipt scan" if source == 'camera' else "Scanned receipt"
+            saved_tx = Transaction(
+                user_id=user.id,
+                type='expense',
+                name=merchant_name,
+                amount=amt,
+                category=cat,
+                payment_method='UPI',
+                date=tx_date,
+                color=CATEGORY_COLORS.get(cat, 'coral'),
+                notes=f"{notes_tag}: {merchant_name}",
+                receipt_url=receipt_url,
+            )
+            db.session.add(saved_tx)
+            db.session.commit()
+
     return success_response({
         'extracted': extracted,
-        'message': 'Receipt scanned successfully. Please review and confirm before saving.'
+        'receipt_url': receipt_url,
+        'receipt_filename': unique_name,
+        'source': source,
+        'saved': saved_tx is not None,
+        'transaction': saved_tx.to_dict() if saved_tx else None,
+        'message': 'Receipt analyzed and automatically saved into expenses!' if saved_tx else 'Receipt scanned successfully. Please review and confirm before saving.'
     })
+
+@receipts_bp.route('/image/<filename>', methods=['GET'])
+def get_receipt_image(filename):
+    """Serve uploaded/captured receipt image."""
+    receipts_dir = _get_receipts_dir()
+    safe_name = secure_filename(filename)
+    if not os.path.isfile(os.path.join(receipts_dir, safe_name)):
+        return error_response('Receipt image not found', 'NOT_FOUND', status=404)
+    return send_from_directory(receipts_dir, safe_name)
 
 @receipts_bp.route('/recent', methods=['GET'])
 @require_auth
@@ -67,7 +131,10 @@ def get_recent_scans():
     limit = int(request.args.get('limit', 10))
     scans = Transaction.query.filter(
         Transaction.user_id == user.id,
-        Transaction.notes.ilike('%receipt%')
+        db.or_(
+            Transaction.notes.ilike('%receipt%'),
+            Transaction.receipt_url.isnot(None)
+        )
     ).order_by(Transaction.created_at.desc()).limit(limit).all()
     return success_response({'items': [s.to_dict() for s in scans]})
 
@@ -106,7 +173,10 @@ def confirm():
         except Exception:
             tx_date = datetime.utcnow()
     
-    notes = (data.get('notes') or f"Scanned receipt ({name})").strip()
+    receipt_url = data.get('receipt_url')
+    source = data.get('source', 'upload')
+    notes_prefix = "Camera receipt scan" if source == 'camera' else "Scanned receipt"
+    notes = (data.get('notes') or f"{notes_prefix}: {name}").strip()
     payment_method = data.get('payment_method') or 'UPI'
     
     tx = Transaction(
@@ -119,9 +189,11 @@ def confirm():
         date=tx_date,
         color=CATEGORY_COLORS.get(category, 'coral'),
         notes=notes,
+        receipt_url=receipt_url,
     )
     db.session.add(tx)
     db.session.commit()
     
     return success_response(tx.to_dict(), message="Receipt transaction saved successfully", status=201)
+
 

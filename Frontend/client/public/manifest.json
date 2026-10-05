@@ -1,0 +1,64 @@
+{
+  "name": "AI Expense Tracker — Smart Financial Management",
+  "short_name": "ExpenseTracker",
+  "description": "AI-Powered Expense Tracker with Camera Receipt OCR, Voice Logging, and Smart Budget Predictions.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7f3",
+  "theme_color": "#172532",
+  "lang": "en",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Camera Receipt Scanner",
+      "short_name": "Scan Receipt",
+      "description": "Scan or take a photo of a receipt with AI OCR",
+      "url": "/student/receipt-scanner",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Voice Expense Tracker",
+      "short_name": "Voice Log",
+      "description": "Log an expense via voice in Hindi, Hinglish, or English",
+      "url": "/student/voice-expense",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Student Dashboard",
+      "short_name": "Student",
+      "description": "Open student dashboard and budget",
+      "url": "/student",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Professional Dashboard",
+      "short_name": "Professional",
+      "description": "Open professional dashboard and financial analytics",
+      "url": "/professional",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

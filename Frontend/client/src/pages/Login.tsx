@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff, Sparkles, ArrowRight } from "lucide-react";
@@ -17,9 +17,14 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, redirect
+  // If already logged in, redirect inside effect to avoid setState during render
+  useEffect(() => {
+    if (isAuthenticated && role) {
+      navigate(`/${role}`, { replace: true });
+    }
+  }, [isAuthenticated, role, navigate]);
+
   if (isAuthenticated && role) {
-    navigate(`/${role}`, { replace: true });
     return null;
   }
 

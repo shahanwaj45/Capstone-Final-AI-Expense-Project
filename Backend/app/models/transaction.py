@@ -36,6 +36,7 @@ class Transaction(db.Model):
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     color = db.Column(db.String(20), default='coral')
     notes = db.Column(db.Text)
+    receipt_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', back_populates='transactions')
@@ -68,4 +69,5 @@ class Transaction(db.Model):
             'date_raw': self.date.isoformat(),
             'color': CATEGORY_COLORS.get(self.category, 'coral'),
             'notes': self.notes,
+            'receipt_url': self.receipt_url,
         }

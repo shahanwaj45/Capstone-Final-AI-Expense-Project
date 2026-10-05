@@ -1,6 +1,6 @@
-﻿import axios from "axios";
+import axios from "axios";
 
-const API_BASE = "/api";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || "/api";
 const TOKEN_KEY = "expenseTrackerToken";
 const USER_KEY = "expenseTrackerUser";
 

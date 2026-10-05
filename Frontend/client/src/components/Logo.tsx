@@ -92,17 +92,17 @@ export default function Logo({
           >
             <defs>
               <linearGradient id={`grad-emerald-${size}`} x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stop-color="#10B981" />
-                <stop offset="60%" stop-color="#38EF7D" />
-                <stop offset="100%" stop-color="#00F2FE" />
+                <stop offset="0%" stopColor="#10B981" />
+                <stop offset="60%" stopColor="#38EF7D" />
+                <stop offset="100%" stopColor="#00F2FE" />
               </linearGradient>
               <linearGradient id={`grad-indigo-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#818CF8" />
-                <stop offset="100%" stop-color="#6366F1" />
+                <stop offset="0%" stopColor="#818CF8" />
+                <stop offset="100%" stopColor="#6366F1" />
               </linearGradient>
               <linearGradient id={`grad-gold-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FDE047" />
-                <stop offset="100%" stop-color="#F59E0B" />
+                <stop offset="0%" stopColor="#FDE047" />
+                <stop offset="100%" stopColor="#F59E0B" />
               </linearGradient>
             </defs>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, X, Zap, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ChevronDown, X, Zap, ArrowDownLeft, ArrowUpRight, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthContext";
 import api from "@/lib/api";
@@ -316,6 +317,19 @@ export default function AddExpenseModal({ open, onClose, initialType = "expense"
                 <>Save Expense <Zap size={14} className="ml-1 inline text-[#7BE2BE]" /></>
               )}
             </button>
+
+            {txType === "expense" && (
+              <div className="mt-3 text-center">
+                <Link
+                  to={role === "professional" ? "/professional/receipt-scanner" : "/student/receipt-scanner"}
+                  onClick={() => { reset(); onClose(); }}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#3b8165] hover:underline"
+                >
+                  <Camera size={13} className="text-[#3ea87c]" />
+                  Have a receipt? Take photo with camera or upload document
+                </Link>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}
