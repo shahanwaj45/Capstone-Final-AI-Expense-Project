@@ -4,6 +4,7 @@ from app.models.income_source import IncomeSource
 from app.models.transaction import Transaction
 from app.utils.auth import require_auth, require_role, get_current_user, success_response, error_response
 from datetime import datetime, date
+from app.utils.timezone import get_ist_now, get_ist_today
 
 income_bp = Blueprint('income', __name__)
 
@@ -12,7 +13,7 @@ income_bp = Blueprint('income', __name__)
 @require_role('professional')
 def list_income():
     user = get_current_user()
-    now = date.today()
+    now = get_ist_today()
     month = int(request.args.get('month', now.month))
     year = int(request.args.get('year', now.year))
     
@@ -43,7 +44,7 @@ def create_income():
     except (TypeError, ValueError):
         return error_response('Invalid amount')
     
-    date_received = date.today()
+    date_received = get_ist_today()
     if data.get('date_received'):
         try:
             date_received = date.fromisoformat(data['date_received'])
@@ -69,7 +70,7 @@ def create_income():
         amount=amount,
         category='Income',
         payment_method='Bank Transfer',
-        date=datetime.combine(date_received, datetime.utcnow().time()),
+        date=datetime.combine(date_received, get_ist_now().time()),
         color='mint',
         notes=f"Income source: {data.get('type', 'fixed')}"
     )
@@ -77,7 +78,7 @@ def create_income():
     db.session.commit()
     return success_response(s.to_dict(), status=201)
 
-@income_bp.route('/<iid>', methods=['PATCH'])
+@income_bp.route('/<iid>', methods=['PATCH', 'PUT'])
 @require_auth
 @require_role('professional')
 def update_income(iid):

@@ -90,10 +90,15 @@ def create_transaction():
     if date_str:
         try:
             tx_date = datetime.fromisoformat(date_str)
+            if tx_date.tzinfo is not None:
+                from app.utils.timezone import to_ist
+                tx_date = to_ist(tx_date)
         except ValueError:
-            tx_date = datetime.utcnow()
+            from app.utils.timezone import get_ist_now
+            tx_date = get_ist_now()
     else:
-        tx_date = datetime.utcnow()
+        from app.utils.timezone import get_ist_now
+        tx_date = get_ist_now()
     
     tx = Transaction(
         user_id=user.id,
@@ -120,7 +125,7 @@ def get_transaction(tx_id):
         return error_response('Transaction not found', 'NOT_FOUND', status=404)
     return success_response(tx.to_dict())
 
-@transactions_bp.route('/<tx_id>', methods=['PATCH'])
+@transactions_bp.route('/<tx_id>', methods=['PATCH', 'PUT'])
 @require_auth
 def update_transaction(tx_id):
     user = get_current_user()

@@ -1,4 +1,4 @@
-import { ArrowUpRight, HeartPulse, Plus, ArrowDownLeft, Sliders } from "lucide-react";
+import { ArrowUpRight, HeartPulse, Plus, ArrowDownLeft, Sliders, ShieldCheck, AlertCircle } from "lucide-react";
 import type { EmergencyFundData } from "@/types";
 
 interface Props {
@@ -9,10 +9,18 @@ interface Props {
 }
 
 export default function EmergencyFundCard({ fund, onDeposit, onWithdraw, onAdjustTarget }: Props) {
-  const current = fund.current || 0;
-  const recommended = fund.recommended || 180000;
-  const monthsCovered = fund.monthsCovered ?? (fund.monthly_expense_estimate ? (current / fund.monthly_expense_estimate).toFixed(1) : 0);
-  const percentComplete = fund.percentComplete ?? Math.min(100, Math.round((current / recommended) * 100));
+  const current = fund.current || fund.current_amount || 0;
+  const targetMonths = fund.target_months || 6;
+  const monthlyEst = fund.monthly_expense_estimate || 45000;
+  const recommended = fund.recommended || fund.recommended_amount || (monthlyEst * targetMonths);
+  
+  const rawMonthsCovered = fund.monthsCovered ?? (monthlyEst > 0 ? current / monthlyEst : 0);
+  const monthsCovered = Number(rawMonthsCovered).toFixed(1);
+  const percentComplete = fund.percentComplete ?? Math.min(100, Math.round((current / (recommended || 1)) * 100));
+
+  const shortfall = fund.shortfall !== undefined ? fund.shortfall : Math.max(0, recommended - current);
+  const surplus = fund.surplus !== undefined ? fund.surplus : Math.max(0, current - recommended);
+  const isTargetMet = current >= recommended;
 
   return (
     <section className="relative overflow-hidden rounded-[26px] bg-[#fff8f3] p-6 shadow-[6px_9px_23px_rgba(42,65,55,.05)] border border-[#fae3d5]">
@@ -49,7 +57,7 @@ export default function EmergencyFundCard({ fund, onDeposit, onWithdraw, onAdjus
           </div>
           <div className="text-right">
             <span className="inline-block rounded-full bg-[#fae8dc] px-2.5 py-0.5 text-[11px] font-bold text-[#cf7245]">
-              {monthsCovered} months runway
+              {monthsCovered} mos runway
             </span>
           </div>
         </div>
@@ -62,9 +70,17 @@ export default function EmergencyFundCard({ fund, onDeposit, onWithdraw, onAdjus
           />
         </div>
 
-        <div className="mt-2 flex justify-between text-[11px] text-[#b59d8d]">
-          <span>{percentComplete}% of target runway</span>
-          <span>Target ₹{recommended.toLocaleString("en-IN")} (6 mos)</span>
+        <div className="mt-2 flex justify-between items-center text-[11px] text-[#b59d8d]">
+          <span>{percentComplete}% of target runway ({targetMonths} mos)</span>
+          {isTargetMet ? (
+            <span className="inline-flex items-center gap-1 font-semibold text-[#2e7d5a]">
+              <ShieldCheck size={12} /> Surplus: ₹{surplus.toLocaleString("en-IN")}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 font-semibold text-[#d9534f]">
+              <AlertCircle size={12} /> Shortfall: ₹{shortfall.toLocaleString("en-IN")}
+            </span>
+          )}
         </div>
 
         {/* Action Buttons */}

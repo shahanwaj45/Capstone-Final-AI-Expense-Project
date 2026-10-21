@@ -79,7 +79,7 @@ export default function Landing() {
             <Link href="/login" className="rounded-xl px-4 py-2.5 text-[12px] font-bold text-[#52615a] transition hover:bg-white hover:shadow-sm">
               Login
             </Link>
-            <Link href="/login" className="rounded-xl bg-[#172532] px-5 py-2.5 text-[12px] font-bold text-white shadow-[5px_7px_16px_rgba(23,37,50,.14)] transition hover:-translate-y-0.5 hover:bg-[#243b4a]">
+            <Link href="/register" className="rounded-xl bg-[#172532] px-5 py-2.5 text-[12px] font-bold text-white shadow-[5px_7px_16px_rgba(23,37,50,.14)] transition hover:-translate-y-0.5 hover:bg-[#243b4a]">
               Get Started
             </Link>
           </div>
@@ -121,7 +121,7 @@ export default function Landing() {
                 <a href="#ai-features" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2 hover:bg-white">AI Features</a>
                 <hr className="border-[#e4eae5]" />
                 <Link href="/login" className="rounded-xl px-3 py-2 hover:bg-white">Login</Link>
-                <Link href="/login" className="rounded-xl bg-[#172532] px-4 py-3 text-center text-white">Get Started</Link>
+                <Link href="/register" className="rounded-xl bg-[#172532] px-4 py-3 text-center text-white">Get Started</Link>
               </div>
             </motion.div>
           </motion.div>
@@ -149,7 +149,7 @@ export default function Landing() {
                 AI-powered expense tracking built for students and professionals. Understand your spending, find your next best move, and keep the month comfortable.
               </motion.p>
               <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-3">
-                <Link href="/login" className="inline-flex h-12 items-center gap-2 rounded-xl bg-[#172532] px-6 text-[13px] font-bold text-white shadow-[6px_8px_18px_rgba(23,37,50,.14)] transition hover:-translate-y-0.5 hover:bg-[#243b4a]">
+                <Link href="/register" className="inline-flex h-12 items-center gap-2 rounded-xl bg-[#172532] px-6 text-[13px] font-bold text-white shadow-[6px_8px_18px_rgba(23,37,50,.14)] transition hover:-translate-y-0.5 hover:bg-[#243b4a]">
                   Get Started <ArrowRight size={16} className="text-[#7BE2BE]" />
                 </Link>
                 <Link href="/login" className="inline-flex h-12 items-center gap-2 rounded-xl bg-white px-6 text-[13px] font-bold text-[#52615a] shadow-[3px_4px_12px_rgba(23,37,50,.06)] transition hover:-translate-y-0.5">
@@ -483,7 +483,7 @@ export default function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link
-                href="/login"
+                href="/register"
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-[#7BE2BE] px-7 text-[13px] font-bold text-[#172532] shadow-[0_8px_24px_rgba(123,226,190,.3)] transition hover:-translate-y-0.5"
               >
                 Get Started Free <ArrowRight size={16} />
@@ -514,6 +514,7 @@ export default function Landing() {
               <a href="#student" className="hover:text-[#172532]">Student</a>
               <a href="#professional" className="hover:text-[#172532]">Professional</a>
               <a href="#ai-features" className="hover:text-[#172532]">AI Insights</a>
+              <Link href="/register" className="hover:text-[#172532]">Register</Link>
               <Link href="/login" className="hover:text-[#172532]">Login</Link>
             </div>
           </div>

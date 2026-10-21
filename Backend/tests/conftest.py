@@ -8,13 +8,14 @@ from app.models.emergency_fund import EmergencyFund
 from app.models.subscription import Subscription
 from app.models.income_source import IncomeSource
 from datetime import datetime, timezone, date
+from app.utils.timezone import get_ist_now
 
 @pytest.fixture
 def app():
     app = create_app('testing')
     with app.app_context():
         db.create_all()
-        now = datetime.now(timezone.utc)
+        now = get_ist_now()
         
         # Create test student
         student = User(

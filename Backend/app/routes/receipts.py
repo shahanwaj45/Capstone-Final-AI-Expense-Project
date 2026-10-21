@@ -6,6 +6,7 @@ from app.models.transaction import Transaction, CATEGORY_COLORS
 from app.services.ocr_service import scan_receipt
 from app.utils.auth import require_auth, get_current_user, success_response, error_response
 from datetime import datetime
+from app.utils.timezone import get_ist_now
 from werkzeug.utils import secure_filename
 
 receipts_bp = Blueprint('receipts', __name__)
@@ -42,7 +43,7 @@ def scan():
     
     # Save to uploads/receipts dir with unique name
     ext = f.filename.rsplit('.', 1)[1].lower()
-    unique_name = f"receipt_{uuid.uuid4().hex}_{int(datetime.utcnow().timestamp())}.{ext}"
+    unique_name = f"receipt_{uuid.uuid4().hex}_{int(get_ist_now().timestamp())}.{ext}"
     receipts_dir = _get_receipts_dir()
     file_path = os.path.join(receipts_dir, unique_name)
     f.save(file_path)
@@ -51,7 +52,28 @@ def scan():
     extracted, err = scan_receipt(file_path)
     
     if err:
-        # Clean up file on failure
+        if 'quota' in err.lower() or 'plan' in err.lower():
+            # Graceful fallback: preserve uploaded image and provide an editable template
+            receipt_url = f"/api/receipts/image/{unique_name}"
+            source = request.form.get('source', 'upload')
+            extracted = {
+                'merchant': 'Uploaded Receipt',
+                'amount': 0.0,
+                'date': get_ist_now().strftime('%Y-%m-%d'),
+                'category': 'Other'
+            }
+            return success_response({
+                'extracted': extracted,
+                'receipt_url': receipt_url,
+                'receipt_filename': unique_name,
+                'source': source,
+                'saved': False,
+                'transaction': None,
+                'warning': err,
+                'message': 'AI free-tier quota reached. Receipt image attached; please confirm the amount and category below.'
+            })
+            
+        # Clean up file on general OCR failure
         try:
             os.remove(file_path)
         except Exception:
@@ -76,17 +98,17 @@ def scan():
             cat = extracted.get('category') or 'Other'
 
             if use_today or not extracted.get('date'):
-                tx_date = datetime.utcnow()
+                tx_date = get_ist_now()
             else:
                 try:
                     str_d = str(extracted['date']).strip()
                     if len(str_d) == 10:
                         parsed_d = datetime.strptime(str_d, '%Y-%m-%d')
-                        tx_date = datetime.combine(parsed_d.date(), datetime.utcnow().time())
+                        tx_date = datetime.combine(parsed_d.date(), get_ist_now().time())
                     else:
                         tx_date = datetime.fromisoformat(str_d)
                 except Exception:
-                    tx_date = datetime.utcnow()
+                    tx_date = get_ist_now()
 
             notes_tag = "Camera receipt scan" if source == 'camera' else "Scanned receipt"
             saved_tx = Transaction(
@@ -160,18 +182,18 @@ def confirm():
     date_str = data.get('date')
     
     if use_today or not date_str:
-        tx_date = datetime.utcnow()
+        tx_date = get_ist_now()
     else:
         try:
             str_d = str(date_str).strip()
             if len(str_d) == 10:
                 parsed_d = datetime.strptime(str_d, '%Y-%m-%d')
-                now = datetime.utcnow()
+                now = get_ist_now()
                 tx_date = datetime.combine(parsed_d.date(), now.time())
             else:
                 tx_date = datetime.fromisoformat(str_d)
         except Exception:
-            tx_date = datetime.utcnow()
+            tx_date = get_ist_now()
     
     receipt_url = data.get('receipt_url')
     source = data.get('source', 'upload')

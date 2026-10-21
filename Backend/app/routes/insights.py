@@ -1,5 +1,6 @@
-﻿from flask import Blueprint, request
+from flask import Blueprint, request
 from datetime import datetime, timedelta
+from app.utils.timezone import get_ist_now
 from app import db
 from app.models.ai_insight import AIInsight
 from app.services.ai_service import generate_insight
@@ -16,14 +17,14 @@ def _get_or_generate_insight(user, force=False):
     cache_valid = (
         latest is not None and
         not force and
-        (datetime.utcnow() - latest.created_at) < timedelta(hours=INSIGHT_CACHE_HOURS)
+        (get_ist_now() - latest.created_at) < timedelta(hours=INSIGHT_CACHE_HOURS)
     )
     
     if cache_valid:
         return latest
     
     headline, description = generate_insight(user, db.session)
-    now = datetime.utcnow()
+    now = get_ist_now()
     insight = AIInsight(
         user_id=user.id,
         headline=headline,

@@ -46,6 +46,9 @@ def _get_budget_data(user, total_expense, start, end):
         year=start.year
     ).all()
     
+    if not budgets:
+        budgets = Budget.query.filter_by(user_id=user.id).order_by(Budget.created_at.desc()).limit(6).all()
+    
     categories = []
     total_budget = 0
     
@@ -59,13 +62,21 @@ def _get_budget_data(user, total_expense, start, end):
             Transaction.date < end
         ).scalar() or 0
         cat_spent = float(cat_spent)
-        total_budget += float(b.limit_amount)
+        cat_limit = float(b.limit_amount)
+        cat_pct = round((cat_spent / cat_limit) * 100) if cat_limit > 0 else 0
+        total_budget += cat_limit
         
         categories.append({
+            'id': b.id,
             'label': b.category,
+            'category': b.category,
             'value': format_inr(cat_spent),
-            'limit': float(b.limit_amount),
+            'limit': cat_limit,
+            'limit_amount': cat_limit,
             'spent': cat_spent,
+            'spent_formatted': format_inr(cat_spent),
+            'remaining': max(0.0, cat_limit - cat_spent),
+            'percent_used': cat_pct,
             'color': b.color,
         })
     
@@ -95,9 +106,12 @@ def student_dashboard():
     progress_pct = round((total_expense / total_funds) * 100) if total_funds > 0 else 0
     progress_pct = max(0, min(100, progress_pct))
     
-    # Safe to spend per day
-    days_in_month = 30
-    today = datetime.utcnow().day
+    # Safe to spend per day calculated in Indian Standard Time (IST)
+    import calendar
+    from app.utils.timezone import get_ist_now
+    ist_now = get_ist_now()
+    days_in_month = calendar.monthrange(ist_now.year, ist_now.month)[1]
+    today = ist_now.day
     days_remaining = max(1, days_in_month - today + 1)
     safe_per_day = round(remaining / days_remaining) if remaining > 0 else 0
     

@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from app import db
 
+from app.utils.timezone import get_ist_now
+
 CATEGORY_COLORS = {
     'Food': 'coral',
     'Travel': 'cyan',
@@ -33,11 +35,11 @@ class Transaction(db.Model):
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     category = db.Column(db.String(100), nullable=False, default='Other')
     payment_method = db.Column(db.String(50), default='UPI')
-    date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    date = db.Column(db.DateTime, nullable=False, default=get_ist_now)
     color = db.Column(db.String(20), default='coral')
     notes = db.Column(db.Text)
     receipt_url = db.Column(db.String(500), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
 
     user = db.relationship('User', back_populates='transactions')
 
@@ -48,7 +50,7 @@ class Transaction(db.Model):
         else:
             formatted_amount = f"+₹{amount_val:,.0f}"
         
-        now = datetime.utcnow()
+        now = get_ist_now()
         t_date = self.date
         if t_date.date() == now.date():
             date_str = f"Today, {t_date.strftime('%I:%M %p')}"

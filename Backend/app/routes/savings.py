@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, request
+from flask import Blueprint, request
 from app import db
 from app.models.savings_goal import SavingsGoal
 from app.utils.auth import require_auth, get_current_user, success_response, error_response
@@ -52,7 +52,7 @@ def get_goal(gid):
         return error_response('Goal not found', 'NOT_FOUND', status=404)
     return success_response(g.to_dict())
 
-@savings_bp.route('/<gid>', methods=['PATCH'])
+@savings_bp.route('/<gid>', methods=['PATCH', 'PUT'])
 @require_auth
 def update_goal(gid):
     user = get_current_user()

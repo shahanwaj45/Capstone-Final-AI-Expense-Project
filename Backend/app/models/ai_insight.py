@@ -3,6 +3,8 @@ import json
 from datetime import datetime
 from app import db
 
+from app.utils.timezone import get_ist_now
+
 class AIInsight(db.Model):
     __tablename__ = 'ai_insights'
     
@@ -12,12 +14,12 @@ class AIInsight(db.Model):
     description = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     source_period = db.Column(db.String(50))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
 
     user = db.relationship('User', back_populates='ai_insights')
 
     def to_dict(self):
-        now = datetime.utcnow()
+        now = get_ist_now()
         diff = now - self.created_at
         if diff.seconds < 60:
             ts = 'Just now'

@@ -1,8 +1,9 @@
+import { useState, useEffect } from "react";
 import { Bell, LogOut, MoreHorizontal, Settings2, X } from "lucide-react";
 import Logo from "@/components/Logo";
-import { toast } from "sonner";
 import { useLocation } from "wouter";
 import type { NavItem, UserRole } from "@/types";
+import api from "@/lib/api";
 
 interface Props {
   role: UserRole;
@@ -26,11 +27,36 @@ export default function DashboardSidebar({
   onLogout,
 }: Props) {
   const [, navigate] = useLocation();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  const fetchUnread = async () => {
+    try {
+      const res = await api.get("/notifications");
+      if (res.data?.success && res.data?.data) {
+        setUnreadCount(res.data.data.unread_count ?? 0);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchUnread();
+    const handleUpdate = () => fetchUnread();
+    window.addEventListener("notifications-updated", handleUpdate);
+    const interval = setInterval(fetchUnread, 45000);
+    return () => {
+      window.removeEventListener("notifications-updated", handleUpdate);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleNav = (path: string) => {
     navigate(path);
     onClose();
   };
+
+  const isNotificationsActive = activePath === `/${role}/notifications`;
 
   return (
     <>
@@ -99,11 +125,22 @@ export default function DashboardSidebar({
         {/* Bottom section */}
         <div className="mt-auto space-y-1 pt-4">
           <button
-            onClick={() => toast.info("Notifications are all caught up")}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-[#728079] hover:bg-white"
+            onClick={() => handleNav(`/${role}/notifications`)}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${
+              isNotificationsActive
+                ? "bg-[#172532] text-white shadow-[0_4px_12px_rgba(23,37,50,.18)]"
+                : "text-[#728079] hover:bg-white hover:text-[#172532]"
+            }`}
           >
-            <Bell size={17} /> Notifications{" "}
-            <span className="ml-auto h-2 w-2 rounded-full bg-[#f29b75]" />
+            <Bell size={17} className={isNotificationsActive ? "text-white" : "text-[#9aa6a0]"} />
+            <span>Notifications</span>
+            {unreadCount > 0 ? (
+              <span className="ml-auto flex items-center justify-center rounded-full bg-[#f29b75] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : (
+              <span className="ml-auto h-2 w-2 rounded-full bg-[#d6e0d9]" />
+            )}
           </button>
           <button
             onClick={onLogout}

@@ -1,7 +1,8 @@
 import io
 import calendar
 from datetime import datetime
-from flask import Blueprint, request, make_response, send_file
+from app.utils.timezone import get_ist_now
+from flask import Blueprint, request, make_response
 from sqlalchemy import func
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -13,18 +14,17 @@ from app.models.transaction import Transaction
 from app.models.income_source import IncomeSource
 from app.models.budget import Budget
 from app.utils.auth import require_auth, get_current_user, success_response, error_response
-from app.utils.calculations import calculate_financial_health, format_inr
+from app.utils.calculations import calculate_financial_health, get_canonical_month_range
 
 reports_bp = Blueprint('reports', __name__)
 
 def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
-    now = datetime.utcnow()
+    now = get_ist_now()
     month = month or now.month
     year = year or now.year
     month_name = calendar.month_name[month]
     
-    start = datetime(year, month, 1)
-    end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    start, end = get_canonical_month_range(year, month)
     
     # 1. Fetch user expenses
     txs = Transaction.query.filter(
@@ -44,6 +44,14 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
         Transaction.date < end
     ).all()
     total_income = sum(float(t.amount) for t in income_txs)
+    
+    # Include income from income_sources table for professionals if any
+    if user.role == 'professional':
+        inc_sources = IncomeSource.query.filter_by(user_id=user.id).all()
+        src_total = sum(float(s.amount) for s in inc_sources)
+        if src_total > total_income:
+            total_income = src_total
+            
     if total_income == 0 and user.monthly_allowance:
         total_income = float(user.monthly_allowance)
         
@@ -54,9 +62,10 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     # 3. Category breakdown
     cat_totals = {}
     for t in txs:
-        cat_totals[t.category] = cat_totals.get(t.category, 0.0) + float(t.amount)
+        cat = t.category or "Other"
+        cat_totals[cat] = cat_totals.get(cat, 0.0) + float(t.amount)
         
-    # 4. Create in-memory PDF
+    # 4. Create in-memory PDF using ReportLab
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
@@ -69,13 +78,10 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     
     styles = getSampleStyleSheet()
     
-    # Custom Palette Matching Soft Signal UI
     primary_color = colors.HexColor('#172532')
-    accent_mint = colors.HexColor('#2E7D5A')
-    accent_coral = colors.HexColor('#D9534F')
-    light_bg = colors.HexColor('#F8FAF7')
-    border_color = colors.HexColor('#E2E8E2')
     text_muted = colors.HexColor('#718078')
+    border_color = colors.HexColor('#E2E8E2')
+    light_bg = colors.HexColor('#F8FAF7')
     
     title_style = ParagraphStyle(
         'DocTitle',
@@ -127,7 +133,7 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     story = []
     
     # Header Banner
-    story.append(Paragraph("AI Expense Tracker — Financial Report", title_style))
+    story.append(Paragraph("AI Expense Tracker — Official Financial Statement", title_style))
     story.append(Paragraph(
         f"Generated on {now.strftime('%d %B %Y')} | Account: {user.name} ({user.email}) | Role: {user.role.title()}",
         subtitle_style
@@ -135,29 +141,23 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=1, color=border_color, spaceBefore=4, spaceAfter=14))
     
-    # Report Title
-    if report_type == 'category':
-        report_heading = f"Category Breakdown Report — {month_name} {year}"
-    elif report_type == 'semester':
-        report_heading = f"Semester Overview Report — H{1 if month <= 6 else 2} {year}"
-    else:
-        report_heading = f"Monthly Financial Summary — {month_name} {year}"
-        
+    # Statement Heading
+    report_heading = f"Financial Statement — {month_name} {year}"
     story.append(Paragraph(report_heading, h2_style))
     story.append(Spacer(1, 6))
     
-    # Financial Overview KPI Table
+    # Financial Overview KPI Cards (Using 'Rs.' to guarantee font compatibility)
     kpi_data = [
         [
             Paragraph("Total Inflow", cell_bold),
-            Paragraph("Total Outflow", cell_bold),
+            Paragraph("Total Spending Burn", cell_bold),
             Paragraph("Net Savings", cell_bold),
             Paragraph("Health Score", cell_bold)
         ],
         [
-            Paragraph(f"+₹{total_income:,.0f}", cell_bold),
-            Paragraph(f"-₹{total_spent:,.0f}", cell_bold),
-            Paragraph(f"₹{net_savings:,.0f} ({savings_rate}%)", cell_bold),
+            Paragraph(f"+Rs. {total_income:,.0f}", cell_bold),
+            Paragraph(f"-Rs. {total_spent:,.0f}", cell_bold),
+            Paragraph(f"Rs. {net_savings:,.0f} ({savings_rate}%)", cell_bold),
             Paragraph(f"{health_score} / 100", cell_bold)
         ]
     ]
@@ -181,7 +181,7 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     cat_rows = [[
         Paragraph("Category", cell_bold),
         Paragraph("Amount Spent", cell_bold),
-        Paragraph("% of Total Spending", cell_bold)
+        Paragraph("Share of Spending", cell_bold)
     ]]
     
     if cat_totals:
@@ -189,13 +189,13 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
             pct = round((amt / total_spent) * 100, 1) if total_spent > 0 else 0
             cat_rows.append([
                 Paragraph(cat, cell_regular),
-                Paragraph(f"₹{amt:,.0f}", cell_regular),
+                Paragraph(f"Rs. {amt:,.0f}", cell_regular),
                 Paragraph(f"{pct}%", cell_regular)
             ])
     else:
         cat_rows.append([
             Paragraph("No recorded expenses", cell_regular),
-            Paragraph("₹0", cell_regular),
+            Paragraph("Rs. 0", cell_regular),
             Paragraph("0%", cell_regular)
         ])
         
@@ -210,8 +210,8 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     story.append(cat_table)
     story.append(Spacer(1, 16))
     
-    # Recent Transactions Section
-    story.append(Paragraph("Recent Transactions Recorded", h2_style))
+    # Recent Transactions Ledger Table
+    story.append(Paragraph("Recent Transactions Ledger", h2_style))
     tx_rows = [[
         Paragraph("Date", cell_bold),
         Paragraph("Description / Merchant", cell_bold),
@@ -219,20 +219,20 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
         Paragraph("Amount", cell_bold)
     ]]
     
-    for t in txs[:8]:
+    for t in txs[:10]:
         tx_rows.append([
             Paragraph(t.date.strftime("%d %b %Y"), cell_regular),
-            Paragraph(t.name[:25], cell_regular),
-            Paragraph(t.category, cell_regular),
-            Paragraph(f"-₹{float(t.amount):,.0f}", cell_regular)
+            Paragraph(t.name[:28], cell_regular),
+            Paragraph(t.category or "Other", cell_regular),
+            Paragraph(f"-Rs. {float(t.amount):,.0f}", cell_regular)
         ])
         
     if len(txs) == 0:
         tx_rows.append([
             Paragraph("-", cell_regular),
-            Paragraph("No transactions for this period", cell_regular),
+            Paragraph("No transactions for this statement period", cell_regular),
             Paragraph("-", cell_regular),
-            Paragraph("₹0", cell_regular)
+            Paragraph("Rs. 0", cell_regular)
         ])
         
     tx_table = Table(tx_rows, colWidths=[110, 200, 112, 110])
@@ -249,7 +249,7 @@ def _generate_pdf_buffer(user, report_type="monthly", month=None, year=None):
     # Footer Notice
     story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=10, spaceAfter=8))
     story.append(Paragraph(
-        "Confidential document generated automatically by AI Expense Tracker. Values rounded to nearest whole rupee.",
+        "Confidential financial statement generated automatically by AI Expense Tracker ReportLab Engine. Values formatted in INR.",
         subtitle_style
     ))
     
@@ -264,9 +264,10 @@ def download_pdf():
     user = get_current_user()
     name = request.args.get('name', '').lower()
     
-    now = datetime.utcnow()
+    now = get_ist_now()
     month = int(request.args.get('month', now.month))
     year = int(request.args.get('year', now.year))
+    month_name = calendar.month_name[month]
     
     report_type = "monthly"
     if "category" in name:
@@ -276,7 +277,7 @@ def download_pdf():
         
     buf = _generate_pdf_buffer(user, report_type=report_type, month=month, year=year)
     
-    filename = f"Financial_Report_{user.name.replace(' ', '_')}_{calendar.month_abbr[month]}_{year}.pdf"
+    filename = f"Statement_{month_name}_{year}.pdf"
     
     response = make_response(buf.getvalue())
     response.headers['Content-Type'] = 'application/pdf'
@@ -286,9 +287,10 @@ def download_pdf():
 @reports_bp.route('/list', methods=['GET'])
 @require_auth
 def list_reports():
-    now = datetime.utcnow()
+    now = get_ist_now()
     current_month_name = calendar.month_name[now.month]
     prev_month = now.month - 1 if now.month > 1 else 12
+    prev_year = now.year if now.month > 1 else now.year - 1
     prev_month_name = calendar.month_name[prev_month]
     
     available = [
@@ -303,12 +305,12 @@ def list_reports():
         },
         {
             "id": "category-prev",
-            "name": f"Category Breakdown — {prev_month_name} {now.year}",
+            "name": f"Category Breakdown — {prev_month_name} {prev_year}",
             "type": "PDF",
             "date": f"1 {current_month_name[:3]} {now.year}",
             "report_type": "category",
             "month": prev_month,
-            "year": now.year
+            "year": prev_year
         },
         {
             "id": "semester-h1",

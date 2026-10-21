@@ -1,6 +1,8 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 from app import db
+
+from app.utils.timezone import get_ist_now
 
 class Budget(db.Model):
     __tablename__ = 'budgets'
@@ -12,7 +14,7 @@ class Budget(db.Model):
     color = db.Column(db.String(20), default='#7BE2BE')
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
 
     user = db.relationship('User', back_populates='budgets')
 

@@ -78,10 +78,16 @@ export interface SavingsGoal {
 export interface EmergencyFundData {
   id?: string;
   current: number;
+  current_amount?: number;
   recommended: number;
+  recommended_amount?: number;
   monthsCovered: number;
+  runway_months?: number;
   percentComplete: number;
   monthly_expense_estimate?: number;
+  target_months?: number;
+  shortfall?: number;
+  surplus?: number;
 }
 
 // ── AI Insight ────────────────────────────────────────────────────────────────

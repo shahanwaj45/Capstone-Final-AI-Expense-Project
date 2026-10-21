@@ -1,4 +1,4 @@
-﻿import os
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -19,6 +19,7 @@ if __name__ == '__main__':
         from app.models.project import Project, ProjectExpense
         from app.models.semester_budget import SemesterBudget
         from app.models.ai_insight import AIInsight
+        from app.models.notification import Notification
         
         db.create_all()
         print("Database tables created.")

@@ -290,7 +290,13 @@ export default function ReceiptScanner() {
           setExtracted(null);
           loadRecentScans();
         } else {
-          toast.success("Receipt analyzed with AI! Please review and confirm the extracted details.");
+          if (data.warning) {
+            toast.warning(data.message || data.warning, {
+              description: "You can edit the extracted details before confirming.",
+            });
+          } else {
+            toast.success("Receipt analyzed with AI! Please review and confirm the extracted details.");
+          }
         }
       }
     } catch (err: any) {

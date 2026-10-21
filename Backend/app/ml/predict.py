@@ -2,6 +2,7 @@ import logging
 import calendar
 import os
 from datetime import datetime, timedelta
+from app.utils.timezone import get_ist_now
 from app.models.transaction import Transaction
 from sqlalchemy import func, extract
 
@@ -92,7 +93,7 @@ def predict_next_months(user_id, db_session, n_months=3):
     - 6+ months: Linear regression with trend extrapolation
     Also generates category forecasts, confidence ranges, and AI forecast commentary.
     """
-    now = datetime.utcnow()
+    now = get_ist_now()
     total_tx_count = db_session.query(func.count(Transaction.id)).filter(
         Transaction.user_id == user_id,
         Transaction.type == 'expense'

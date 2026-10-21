@@ -33,11 +33,18 @@ def create_app(config_name=None):
         try:
             from sqlalchemy import inspect, text
             inspector = inspect(db.engine)
-            if 'transactions' in inspector.get_table_names():
+            table_names = inspector.get_table_names()
+            if 'transactions' in table_names:
                 cols = [c['name'] for c in inspector.get_columns('transactions')]
                 if 'receipt_url' not in cols:
                     with db.engine.connect() as conn:
                         conn.execute(text("ALTER TABLE transactions ADD COLUMN receipt_url VARCHAR(500)"))
+                        conn.commit()
+            if 'emergency_fund' in table_names:
+                cols = [c['name'] for c in inspector.get_columns('emergency_fund')]
+                if 'target_months' not in cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE emergency_fund ADD COLUMN target_months INTEGER DEFAULT 6"))
                         conn.commit()
         except Exception:
             pass
@@ -60,6 +67,7 @@ def create_app(config_name=None):
     from app.routes.receipts import receipts_bp
     from app.routes.voice import voice_bp
     from app.routes.reports import reports_bp
+    from app.routes.notifications import notifications_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -72,12 +80,14 @@ def create_app(config_name=None):
     app.register_blueprint(income_bp, url_prefix='/api/income')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
     app.register_blueprint(semester_bp, url_prefix='/api/semester-budget')
+    app.register_blueprint(semester_bp, url_prefix='/api/semester', name='semester_alias')
     app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
     app.register_blueprint(insights_bp, url_prefix='/api/insights')
     app.register_blueprint(predictions_bp, url_prefix='/api/predictions')
     app.register_blueprint(receipts_bp, url_prefix='/api/receipts')
     app.register_blueprint(voice_bp, url_prefix='/api/voice')
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
+    app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     
     # Health check
     @app.route('/api/health')

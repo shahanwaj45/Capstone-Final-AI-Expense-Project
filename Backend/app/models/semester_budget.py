@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 from app import db
 
@@ -21,8 +21,18 @@ class SemesterBudget(db.Model):
         return {
             'id': self.id,
             'month': calendar.month_name[self.month],
+            'month_short': calendar.month_abbr[self.month],
+            'month_num': self.month,
+            'year': self.year,
             'budget': budget_val,
+            'budget_formatted': f"₹{budget_val:,.0f}",
             'spent': spent,
+            'spent_formatted': f"₹{spent:,.0f}",
+            'remaining': max(0.0, budget_val - spent),
+            'remaining_formatted': f"₹{max(0.0, budget_val - spent):,.0f}",
+            'is_over': spent > budget_val,
+            'over_amount': max(0.0, spent - budget_val),
             'status': self.status,
             'percent': pct,
         }
+

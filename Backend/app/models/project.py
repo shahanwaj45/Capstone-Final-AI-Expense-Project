@@ -1,6 +1,8 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 from app import db
+
+from app.utils.timezone import get_ist_now
 
 class Project(db.Model):
     __tablename__ = 'projects'
@@ -9,7 +11,7 @@ class Project(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     budget = db.Column(db.Numeric(12, 2), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_ist_now)
 
     user = db.relationship('User', back_populates='projects')
     expenses = db.relationship('ProjectExpense', back_populates='project', lazy='dynamic', cascade='all, delete-orphan')
@@ -43,7 +45,7 @@ class ProjectExpense(db.Model):
     project_id = db.Column(db.String(36), db.ForeignKey('projects.id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+    date = db.Column(db.DateTime, default=get_ist_now)
 
     project = db.relationship('Project', back_populates='expenses')
 

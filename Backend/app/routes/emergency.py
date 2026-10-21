@@ -8,7 +8,7 @@ emergency_bp = Blueprint('emergency', __name__)
 def _get_or_create_fund(user):
     ef = user.emergency_fund
     if not ef:
-        ef = EmergencyFund(user_id=user.id)
+        ef = EmergencyFund(user_id=user.id, current_amount=0.0, monthly_expense_estimate=30000.0, target_months=6)
         db.session.add(ef)
         db.session.commit()
     return ef
@@ -27,16 +27,24 @@ def get_fund():
     response_data['contributions'] = contrib_list
     return success_response(response_data)
 
-@emergency_bp.route('', methods=['PATCH'])
+@emergency_bp.route('', methods=['PUT', 'PATCH'])
 @require_auth
 def update_fund():
     user = get_current_user()
     ef = _get_or_create_fund(user)
     data = request.get_json() or {}
+    
     if 'current_amount' in data:
         ef.current_amount = max(0.0, float(data['current_amount']))
+    elif 'current' in data:
+        ef.current_amount = max(0.0, float(data['current']))
+        
     if 'monthly_expense_estimate' in data:
         ef.monthly_expense_estimate = max(0.0, float(data['monthly_expense_estimate']))
+        
+    if 'target_months' in data:
+        ef.target_months = max(1, int(data['target_months']))
+
     db.session.commit()
     return success_response(ef.to_dict())
 
@@ -52,6 +60,7 @@ def contribute():
             return error_response('Amount must be > 0')
     except (TypeError, ValueError):
         return error_response('Invalid amount')
+        
     ef.current_amount = float(ef.current_amount) + amount
     contrib = EmergencyFundContribution(fund_id=ef.id, amount=amount)
     db.session.add(contrib)
@@ -72,6 +81,7 @@ def withdraw():
             return error_response(f'Withdrawal amount exceeds available balance of ₹{float(ef.current_amount):,.0f}')
     except (TypeError, ValueError):
         return error_response('Invalid amount')
+        
     ef.current_amount = float(ef.current_amount) - amount
     contrib = EmergencyFundContribution(fund_id=ef.id, amount=-amount)
     db.session.add(contrib)

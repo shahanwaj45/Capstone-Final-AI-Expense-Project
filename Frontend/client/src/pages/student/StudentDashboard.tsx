@@ -16,6 +16,7 @@ import AddExpenseModal from "@/components/dashboard/AddExpenseModal";
 import { studentNav } from "@/data/studentData";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useAuth } from "@/auth/AuthContext";
+import { getISTGreeting, formatISTDate } from "@/lib/utils";
 
 // Fallback data shapes to avoid null crashes
 const FALLBACK_EMERGENCY_FUND = {
@@ -40,13 +41,14 @@ export default function StudentDashboard() {
   const { data, loading, refetch } = useDashboard("student");
 
   const greetingName = user?.name?.split(" ")[0] ?? "there";
-  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const greeting = getISTGreeting();
+  const today = formatISTDate(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
     <DashboardLayout
       role="student"
       navItems={studentNav}
-      pageTitle={`Good morning, ${greetingName}`}
+      pageTitle={`${greeting}, ${greetingName}`}
       subtitle={today}
     >
       {/* ── Hero banner + CTA ── */}

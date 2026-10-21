@@ -8,25 +8,27 @@ interface DemoAccount {
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
   {
-    email: "student@demo.com",
+    email: "student@test.com",
     password: "student123",
     user: {
-      id: "demo-student-001",
-      email: "student@demo.com",
+      id: "persona-student-001",
+      email: "student@test.com",
       name: "Aarav Rao",
       initials: "AR",
       role: "student",
+      monthly_allowance: 11500,
     },
   },
   {
-    email: "professional@demo.com",
-    password: "professional123",
+    email: "prof@test.com",
+    password: "prof123",
     user: {
-      id: "demo-professional-001",
-      email: "professional@demo.com",
-      name: "Demo Professional",
-      initials: "DP",
+      id: "persona-prof-001",
+      email: "prof@test.com",
+      name: "Vikram Malhotra",
+      initials: "VM",
       role: "professional",
+      monthly_allowance: 115000,
     },
   },
 ];

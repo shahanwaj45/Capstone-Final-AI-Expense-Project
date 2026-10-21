@@ -9,6 +9,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 // Public pages
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 
 // Student pages
@@ -35,6 +36,7 @@ import AIInsights from "./pages/shared/AIInsights";
 import Analytics from "./pages/shared/Analytics";
 import Reports from "./pages/shared/Reports";
 import Settings from "./pages/shared/Settings";
+import Notifications from "./pages/shared/Notifications";
 
 function Router() {
   return (
@@ -42,6 +44,8 @@ function Router() {
       {/* ── Public ── */}
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      <Route path="/signup" component={Register} />
 
       {/* ── Student routes ── */}
       <Route path="/student">
@@ -92,6 +96,9 @@ function Router() {
       <Route path="/student/transactions">
         <ProtectedRoute allowedRole="student"><Transactions /></ProtectedRoute>
       </Route>
+      <Route path="/student/notifications">
+        <ProtectedRoute allowedRole="student"><Notifications /></ProtectedRoute>
+      </Route>
       <Route path="/student/settings">
         <ProtectedRoute allowedRole="student"><Settings /></ProtectedRoute>
       </Route>
@@ -138,6 +145,9 @@ function Router() {
       </Route>
       <Route path="/professional/transactions">
         <ProtectedRoute allowedRole="professional"><Transactions /></ProtectedRoute>
+      </Route>
+      <Route path="/professional/notifications">
+        <ProtectedRoute allowedRole="professional"><Notifications /></ProtectedRoute>
       </Route>
       <Route path="/professional/settings">
         <ProtectedRoute allowedRole="professional"><Settings /></ProtectedRoute>

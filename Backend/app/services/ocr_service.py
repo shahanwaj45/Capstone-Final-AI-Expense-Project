@@ -12,19 +12,36 @@ VALID_CATEGORIES = {
     'Health', 'Shopping', 'Subscription', 'Other'
 }
 
+# Ordered model candidates with independent quota buckets
 FALLBACK_MODELS = [
-    'gemini-3.8-flash',
-    'gemini-3.6-flash',
-    'gemini-flash-latest',
     'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
 ]
+
+PROMPT_TEXT = """Look at this receipt/invoice document and extract the financial information.
+You must respond ONLY with a strict JSON object with this exact contract (no markdown, no code block backticks):
+{
+  "merchant": "Merchant or store name",
+  "amount": 250.00,
+  "date": "YYYY-MM-DD",
+  "category": "Food"
+}
+
+Canonical categories allowed: Food, Travel, Education, Entertainment, Bills, Health, Shopping, Subscription, Other.
+Date format MUST be YYYY-MM-DD. Amount must be a clean numeric float in Indian Rupee value. If a field cannot be determined, set it to null."""
 
 def scan_receipt(file_path):
     """
-    Extract expense data from a receipt image or PDF document using Gemini Vision.
+    Extract expense data from a receipt image or PDF document using Gemini Flash Vision.
+    Inspects bytes in memory using Pillow (PIL) and guarantees clean payloads.
     
     Returns: (dict | None, error_message | None)
-    dict shape: { merchant, amount, date, category }
+    Contract: { "merchant": str, "amount": float, "date": "YYYY-MM-DD", "category": str }
     """
     gemini_key = os.environ.get('GEMINI_API_KEY', '').strip()
     
@@ -32,7 +49,7 @@ def scan_receipt(file_path):
         logger.warning("No Gemini API key configured for receipt OCR")
         return None, "Gemini API key is not configured. Please add GEMINI_API_KEY to your Backend/.env file."
     
-    # 1. Load image or PDF document
+    images = []
     try:
         images = _load_file_pages(file_path)
     except Exception as e:
@@ -42,13 +59,20 @@ def scan_receipt(file_path):
     if not images:
         return None, "No readable pages or images found in the uploaded file."
 
-    # 2. Extract with Gemini (trying google.genai first, then google.generativeai)
-    return _scan_with_gemini_multimodal(images, gemini_key)
+    try:
+        return _scan_with_gemini_multimodal(images, gemini_key)
+    finally:
+        # Ensure memory release of PIL images
+        for img in images:
+            try:
+                img.close()
+            except Exception:
+                pass
 
 def _load_file_pages(file_path):
     """
-    Convert receipt image or PDF into a list of PIL Images.
-    Ensures file handles are promptly closed for Windows file lock compatibility.
+    Convert receipt image (PNG, JPG, WEBP) or PDF into memory-managed PIL Images.
+    Ensures zero disk temp artifacts remain.
     """
     ext = os.path.splitext(file_path)[1].lower()
     pages = []
@@ -57,36 +81,41 @@ def _load_file_pages(file_path):
         try:
             import pymupdf
             doc = pymupdf.open(file_path)
-            # Process up to first 2 pages for receipt
-            max_pages = min(len(doc), 2)
-            for page_idx in range(max_pages):
-                page = doc[page_idx]
-                pix = page.get_pixmap(dpi=150)
-                img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-                pages.append(img)
-            doc.close()
+            try:
+                max_pages = min(len(doc), 2)
+                for page_idx in range(max_pages):
+                    page = doc[page_idx]
+                    pix = page.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+                    with Image.open(io.BytesIO(img_bytes)) as pil_img:
+                        pages.append(pil_img.convert("RGB").copy())
+            finally:
+                doc.close()
         except Exception as e:
             logger.warning(f"PyMuPDF failed to render PDF: {e}. Trying fallback pdf readers...")
             try:
                 import pypdfium2 as pdfium
                 pdf = pdfium.PdfDocument(file_path)
-                for page_idx in range(min(len(pdf), 2)):
-                    page = pdf[page_idx]
-                    bitmap = page.render(scale=2)
-                    pages.append(bitmap.to_pil().convert("RGB"))
-                pdf.close()
+                try:
+                    for page_idx in range(min(len(pdf), 2)):
+                        page = pdf[page_idx]
+                        bitmap = page.render(scale=2)
+                        pil_img = bitmap.to_pil().convert("RGB")
+                        pages.append(pil_img.copy())
+                finally:
+                    pdf.close()
             except Exception as e2:
                 logger.error(f"All PDF renderers failed: {e2}")
                 raise e
     else:
+        # Load image via Pillow in memory
         with Image.open(file_path) as raw_img:
-            # Copy into memory and convert to RGB
             pages.append(raw_img.convert("RGB").copy())
             
     return pages
 
 def _get_candidate_models():
-    """Build candidate model list starting with user's configured model."""
+    """Build candidate model list starting with user's configured model, followed by all fallbacks."""
     configured = os.environ.get('AI_MODEL', '').strip()
     candidates = []
     if configured:
@@ -97,25 +126,22 @@ def _get_candidate_models():
     return candidates
 
 def _extract_json_from_text(raw_text):
-    """Robustly extract and parse JSON from model output."""
+    """Robustly extract and parse strict contract JSON from model output."""
     text = raw_text.strip()
-    # Strip markdown code blocks
     if '```' in text:
-        # Match code block content
         code_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text, re.IGNORECASE)
         if code_match:
             text = code_match.group(1).strip()
     
-    # Locate first { and last }
     json_match = re.search(r'(\{[\s\S]*\})', text)
     if json_match:
         text = json_match.group(1).strip()
         
     data = json.loads(text)
     
-    # Normalize amount
+    # Enforce strict float amount
     raw_amount = data.get('amount')
-    cleaned_amount = None
+    cleaned_amount = 0.0
     if raw_amount is not None:
         if isinstance(raw_amount, (int, float)):
             cleaned_amount = round(float(raw_amount), 2)
@@ -124,10 +150,10 @@ def _extract_json_from_text(raw_text):
             try:
                 cleaned_amount = round(float(amt_str), 2)
             except ValueError:
-                cleaned_amount = None
+                cleaned_amount = 0.0
     data['amount'] = cleaned_amount
 
-    # Normalize category
+    # Enforce canonical category
     category = data.get('category')
     if category and isinstance(category, str):
         cat_title = category.strip().capitalize()
@@ -136,30 +162,30 @@ def _extract_json_from_text(raw_text):
     else:
         data['category'] = 'Other'
 
-    # Normalize merchant & date
-    data['merchant'] = str(data.get('merchant') or '').strip() or None
-    data['date'] = str(data.get('date') or '').strip() or None
+    # Enforce merchant string
+    merchant = str(data.get('merchant') or '').strip()
+    data['merchant'] = merchant if merchant and merchant.lower() != 'null' else "Scanned Merchant"
+
+    # Enforce YYYY-MM-DD date
+    raw_date = str(data.get('date') or '').strip()
+    if raw_date and len(raw_date) >= 10:
+        match_dt = re.search(r'\d{4}-\d{2}-\d{2}', raw_date)
+        data['date'] = match_dt.group(0) if match_dt else None
+    else:
+        data['date'] = None
 
     return data
 
-PROMPT_TEXT = """Look at this receipt/invoice document and extract the following information.
-Respond ONLY with valid JSON, no conversational markdown:
-{
-  "merchant": "store or vendor name, or null",
-  "amount": 250.00,
-  "date": "YYYY-MM-DD or null if not found",
-  "category": "Food"
-}
-
-Valid categories: Food, Travel, Education, Entertainment, Bills, Health, Shopping, Subscription, Other.
-Pick the most suitable category. If you cannot find a field, set it to null."""
-
 def _scan_with_gemini_multimodal(images, api_key):
-    """Try modern google.genai first, then google.generativeai, cycling through model candidates."""
+    """
+    Cycles through candidate models.
+    If a model hits 429 quota exhaustion or 404, it seamlessly cascades to the next candidate model.
+    """
     candidate_models = _get_candidate_models()
     last_error = None
+    all_quota_exhausted = True
     
-    # Strategy 1: google.genai (modern official SDK)
+    # Strategy 1: Modern google.genai
     try:
         from google import genai
         client = genai.Client(api_key=api_key)
@@ -177,20 +203,23 @@ def _scan_with_gemini_multimodal(images, api_key):
             except Exception as e:
                 err_msg = str(e)
                 last_error = err_msg
-                logger.warning(f"google.genai with model {model_name} failed: {err_msg}")
-                # If error is 404 / model not found / deprecated, continue to next model candidate
-                if any(k in err_msg.lower() for k in ['404', 'not found', 'no longer available', 'deprecated', 'invalid model']):
+                logger.warning(f"google.genai model {model_name} failed: {err_msg}")
+                # If 429 quota error, do NOT fail immediately! Try the next candidate model!
+                if '429' in err_msg or 'quota' in err_msg.lower() or 'resourceexhausted' in err_msg.lower():
+                    logger.info(f"Model {model_name} quota exceeded. Cascading to next candidate...")
                     continue
-                # If it's auth or quota, don't keep hammering
-                if 'quota' in err_msg.lower() or '429' in err_msg or 'resourceexhausted' in err_msg.lower():
-                    return None, "Gemini API quota exceeded. Please check your Google AI Studio plan or limits."
-                if any(k in err_msg.lower() for k in ['unauthenticated', 'invalid api key', 'api_key_invalid', '401', '403']):
+                else:
+                    all_quota_exhausted = False
+                    
+                if any(k in err_msg.lower() for k in ['404', 'not found', 'deprecated']):
+                    continue
+                if any(k in err_msg.lower() for k in ['unauthenticated', 'invalid api key', '401', '403']):
                     return None, "Gemini API key is invalid or unauthorized. Please verify GEMINI_API_KEY in Backend/.env"
                 continue
     except ImportError:
         logger.info("google.genai package not available, falling back to google.generativeai")
 
-    # Strategy 2: google.generativeai (legacy fallback)
+    # Strategy 2: Legacy google.generativeai fallback
     try:
         import google.generativeai as legacy_genai
         legacy_genai.configure(api_key=api_key)
@@ -206,16 +235,20 @@ def _scan_with_gemini_multimodal(images, api_key):
             except Exception as e:
                 err_msg = str(e)
                 last_error = err_msg
-                logger.warning(f"google.generativeai with model {model_name} failed: {err_msg}")
-                if any(k in err_msg.lower() for k in ['404', 'not found', 'no longer available', 'deprecated']):
+                logger.warning(f"google.generativeai model {model_name} failed: {err_msg}")
+                if '429' in err_msg or 'quota' in err_msg.lower() or 'resourceexhausted' in err_msg.lower():
+                    logger.info(f"Model {model_name} quota exceeded. Cascading to next candidate...")
                     continue
-                if 'quota' in err_msg.lower() or '429' in err_msg:
-                    return None, "Gemini API quota exceeded. Please check your Google AI Studio plan or limits."
+                if any(k in err_msg.lower() for k in ['404', 'not found', 'deprecated']):
+                    continue
                 if any(k in err_msg.lower() for k in ['unauthenticated', 'invalid api key', '401', '403']):
-                    return None, "Gemini API key is invalid or unauthorized. Please verify GEMINI_API_KEY in Backend/.env"
+                    return None, "Gemini API key is invalid or unauthorized."
                 continue
     except Exception as e:
         last_error = str(e)
+
+    if last_error and ('429' in last_error or 'quota' in last_error.lower() or 'resourceexhausted' in last_error.lower()):
+        return None, "Gemini API free-tier quota exceeded on all models. Please enter details manually or update your Google AI Studio plan."
 
     clean_err = last_error or "Unknown error"
     if len(clean_err) > 160:

@@ -1,9 +1,10 @@
-﻿from flask import Blueprint, request
+from flask import Blueprint, request
 from app import db
 from app.models.transaction import Transaction, CATEGORY_COLORS
 from app.services.voice_service import process_voice_text
 from app.utils.auth import require_auth, get_current_user, success_response, error_response
 from datetime import datetime
+from app.utils.timezone import get_ist_now
 
 voice_bp = Blueprint('voice', __name__)
 
@@ -51,7 +52,7 @@ def confirm():
         amount=amount,
         category=category,
         payment_method=data.get('payment_method', 'Other'),
-        date=datetime.utcnow(),
+        date=get_ist_now(),
         color=CATEGORY_COLORS.get(category, 'coral'),
         notes=f"Voice expense: {data.get('original_text', '')}",
     )
